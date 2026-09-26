@@ -1,0 +1,76 @@
+import { useEffect, useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import LoginForm from "./components/LoginForm";
+import DashboardPage from "./components/DashboardPage";
+import AdminPanel from "./components/AdminPanel";
+import api from "./api/client";
+import { DashboardStats, User } from "./types";
+
+function App() {
+  const [token, setToken] = useState<string | null>(localStorage.getItem("token"));
+  const [user, setUser] = useState<User | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+
+  const handleLogin = (newToken: string) => {
+    setToken(newToken);
+  };
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    setToken(null);
+    setUser(null);
+    setStats(null);
+  };
+
+  useEffect(() => {
+    if (!token) return;
+
+    const fetchUser = async () => {
+      try {
+        const [userRes, statsRes] = await Promise.all([
+          api.get("/auth/me"),
+          api.get("/dashboard/stats"),
+        ]);
+        setUser(userRes.data);
+        setStats(statsRes.data);
+      } catch (err) {
+        logout();
+      }
+    };
+
+    fetchUser();
+  }, [token]);
+
+  if (!token) {
+    return <LoginForm onLogin={handleLogin} />;
+  }
+
+  if (!user || !stats) {
+    return <div className="loading-screen">Loading...</div>;
+  }
+
+  return (
+    <BrowserRouter>
+      <div className="app-layout">
+        <aside className="sidebar">
+          <div className="brand">MRV</div>
+          <nav>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/admin">Admin panel</a>
+            <button className="logout-btn" onClick={logout}>Logout</button>
+          </nav>
+        </aside>
+
+        <main className="main-panel">
+          <Routes>
+            <Route path="/dashboard" element={<DashboardPage stats={stats} />} />
+            <Route path="/admin" element={<AdminPanel user={user} />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
+  );
+}
+
+export default App;
